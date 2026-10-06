@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+# The version catalog (docs/02 § 9.1 lists the full target set). Entries are
+# added in the phase that first references them — knip fails on an unused
+# catalog entry, so declaring them early is dead configuration.
+catalog:
+  typescript: ^5.9.0

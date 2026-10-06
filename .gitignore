@@ -1,2 +1,22 @@
 # Local agent working file — never commit
 TODO.md
+
+# Dependencies
+node_modules/
+
+# Build output
+.next/
+dist/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Environment files (.env.example stays committed — it is the contract)
+.env*
+!.env.example
+
+# Supabase local state
+supabase/.temp/
+
+# Editors and OS
+.DS_Store

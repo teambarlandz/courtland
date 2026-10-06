@@ -1,0 +1,34 @@
+{
+  "name": "courtland",
+  "private": true,
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": ">=24.12"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "knip": "knip",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check:links": "node tooling/scripts/check-links.mjs",
+    "check:freshness": "node tooling/scripts/check-doc-freshness.mjs",
+    "check:env": "node tooling/scripts/env-sync.mjs",
+    "check:jobs": "node tooling/scripts/check-job-registration.mjs",
+    "check:templates": "node tooling/scripts/check-template-usage.mjs",
+    "check:flags": "node tooling/scripts/check-flag-usage.mjs",
+    "check:permissions": "node tooling/scripts/check-permission-parity.mjs",
+    "check:media": "node tooling/scripts/check-media-transforms.mjs",
+    "check:components": "node tooling/scripts/check-component-usage.mjs",
+    "check:drift": "node tooling/scripts/check-generated-drift.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.0",
+    "@courtland/config": "workspace:*",
+    "knip": "^5.0.0",
+    "turbo": "^2.5.0"
+  }
+}

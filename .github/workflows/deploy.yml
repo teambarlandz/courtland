@@ -1,0 +1,32 @@
+name: Deploy
+
+# Deploy triggers, gated on CI (docs/roadmap.md § Phase 0, docs/23 § 1).
+# Merging to main is the only button. The jobs below are placeholders until
+# the apps they deploy exist; the gating structure is real today.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy staging
+        run: echo "staging deploy lands with the apps (docs/23 section 1 — migrate-staging, deploy-staging, smoke)"
+
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production # environment protection supplies the manual approval
+    steps:
+      - name: Deploy production
+        run: echo "prod deploy lands with the apps (docs/23 section 1 — migrate-prod, deploy-*, smoke-prod, verify)"

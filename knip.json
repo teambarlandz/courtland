@@ -1,0 +1,36 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    "apps/web": {
+      "entry": [
+        "src/app/**/{layout,page,route,loading,error,not-found}.tsx!",
+        "e2e/**/*/spec.ts!",
+        "next.config.ts!"
+      ]
+    },
+    "apps/admin": { "entry": ["src/main.tsx!", "e2e/**/*/spec.ts!", "vite/config.ts!"] },
+    "apps/api": { "entry": ["src/server.ts!", "src/bin/*.ts!", "test/**/*/test.ts!"] },
+    "packages/*": { "entry": ["src/index.ts!", "test/**/*/test.ts!"] },
+    "packages/emails": {
+      "entry": ["src/index.ts!", "src/templates/**/*.handlebars!", "src/partials/**/*.hbs!"]
+    },
+    "packages/pdf": {
+      "entry": [
+        "src/index.ts!",
+        "src/render.ts!",
+        "templates/**/*.handlebars!",
+        "templates/partials/**/*.hbs!"
+      ]
+    }
+  },
+  "ignoreDependencies": ["@biomejs/biome"],
+  "rules": {
+    "files": "error",
+    "dependencies": "error",
+    "unlisted": "error",
+    "exports": "error",
+    "types": "warn",
+    "enumMembers": "warn",
+    "classMembers": "error"
+  }
+}

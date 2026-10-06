@@ -1,0 +1,24 @@
+{
+  "name": "@courtland/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./env-names": "./env-names.ts",
+    "./flags": "./flags.ts",
+    "./biome/base.json": "./biome/base.json",
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./turbo/base.json": "./turbo/base.json"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

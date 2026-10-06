@@ -1,0 +1,6 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.2.0/schema.json",
+  "extends": ["@courtland/config/biome/base.json"],
+  "files": { "includes": ["**", "!**/dist", "!**/.next", "!**/coverage", "!**/.turbo"] },
+  "overrides": [{ "includes": ["supabase/**/*.sql"], "linter": { "enabled": false } }]
+}

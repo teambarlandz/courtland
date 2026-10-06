@@ -1,0 +1,10 @@
+{
+  "extends": "./packages/config/tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@courtland/config": ["packages/config/index.ts"],
+      "@courtland/config/*": ["packages/config/*"]
+    }
+  }
+}
