@@ -1,0 +1,9 @@
+create sequence public.owner_reference_seq     start 1000;
+create sequence public.property_reference_seq  start 1000;
+create sequence public.contract_reference_seq  start 1000;
+create sequence public.allocation_reference_seq start 1000;
+create sequence public.payment_reference_seq   start 1000;
+create sequence public.ticket_reference_seq     start 1000;
+create sequence public.dispute_reference_seq   start 1000;
+create sequence public.document_reference_seq  start 1000;
+create sequence public.payout_reference_seq    start 1000;
