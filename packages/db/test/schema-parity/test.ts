@@ -7,6 +7,10 @@
 // Scope is deliberately columns (names, nullability, types). Defaults,
 // checks and foreign keys live in the migrations; pgTAP asserts their
 // behaviour. Views are excluded: they are read models, not tables.
+// public.migration_history is excluded: it is the migration runner's own
+// bookkeeping (created at runtime by applyMigrations, present only where the
+// runner — not `supabase db reset` — applied the migrations).
+const EXCLUDED_TABLES = new Set(["migration_history"]);
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -100,7 +104,9 @@ test("drizzle tables match the migrated base tables exactly", async () => {
       where table_schema = 'public' and table_type = 'BASE TABLE'`) as {
       table_name: string;
     }[];
-    const dbTables = new Set(tableRows.map((r) => r.table_name));
+    const dbTables = new Set(
+      tableRows.map((r) => r.table_name).filter((t) => !EXCLUDED_TABLES.has(t)),
+    );
     const tsTables = drizzleTables();
     assert.deepEqual(
       [...tsTables.keys()].sort(),

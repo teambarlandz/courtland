@@ -9,7 +9,12 @@
       ]
     },
     "apps/admin": { "entry": ["src/main.tsx!", "e2e/**/*/spec.ts!", "vite/config.ts!"] },
-    "apps/api": { "entry": ["src/server.ts!", "src/bin/*.ts!", "test/**/*/test.ts!"] },
+    "apps/api": {
+      "entry": ["src/server.ts!", "src/bin/*.ts!", "bin/*.ts!", "test/**/*/test.ts!", "test/setup/*.ts!"]
+    },
+    "packages/db": {
+      "entry": ["src/index.ts!", "test/**/*/test.ts!", "drizzle/config.ts!", "bin/*.ts!"]
+    },
     "packages/*": { "entry": ["src/index.ts!", "test/**/*/test.ts!"] },
     "packages/emails": {
       "entry": ["src/index.ts!", "src/templates/**/*.handlebars!", "src/partials/**/*.hbs!"]

@@ -22,8 +22,38 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
       - run: pnpm -r lint
-      - run: pnpm -r test
       - run: node tooling/scripts/check-links.mjs
       - run: node tooling/scripts/check-doc-freshness.mjs
       - run: pnpm knip
       - run: pnpm -r build
+
+  # Database-backed tests. The parity test needs a migrated database, so this
+  # job brings its own Postgres (the supabase/postgres image ships the auth
+  # schema our migrations reference), applies supabase/migrations with
+  # migrate:local, then runs test:pg against it. Port 55432 matches the
+  # committed supabase/config.toml and the test's default DATABASE_URL.
+  test-db:
+    runs-on: ubuntu-latest
+    services:
+      supabase:
+        image: public.ecr.aws/supabase/postgres:15.19.0.004
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @courtland/db migrate:local
+      - run: pnpm --filter @courtland/db test:pg

@@ -36,9 +36,19 @@ Read the conventions first; they explain most of the decisions.
 Helper functions that read across tables during policy evaluation live in `private` and are
 `security definer` with `set search_path = ''`. A user cannot call them; a policy can.
 
+No object in `auth` is owned by these migrations: the base `supabase/postgres` image ships
+`auth.users` and `auth.uid()` (the only two `auth.*` references in SQL), and `auth.jwt()` is
+deliberately never called — `private.current_user_roles()` reads the `request.jwt.claims` GUC
+directly, because creating objects inside the Supabase-owned `auth` schema needs a superuser
+the migration role may not have. Behaviour is identical: an unset or empty claims GUC yields
+no roles.
+
 ## 3. Extensions and generated columns
 
 ```sql
+-- The extensions schema ships with `supabase start` but not with a bare
+-- supabase/postgres image, so the migration creates it (no-op on a full stack).
+create schema if not exists extensions;
 create extension if not exists pgcrypto with schema extensions;   -- gen_random_uuid, crypt
 create extension if not exists pg_trgm with schema extensions;    -- fuzzy title search
 create extension if not exists unaccent with schema extensions;   -- diacritic-insensitive search
@@ -1507,9 +1517,20 @@ create or replace function private.current_user_roles()
 returns public.app_role[]
 language sql stable security definer set search_path = ''
 as $$
+  -- The JWT claims are read inline rather than through auth.jwt(): the base
+  -- supabase/postgres image ships auth.uid() but not auth.jwt(), and creating
+  -- objects inside the supabase-owned auth schema needs a superuser the
+  -- migration role may not have. An unset or empty claims GUC yields no roles.
   select coalesce(
-    (select array_agg((auth.jwt() -> 'app_metadata' -> 'courtland_roles')::text::public.app_role)
-     where auth.jwt() -> 'app_metadata' -> 'courtland_roles' is not null),
+    (select array_agg(u.role)
+       from jsonb_array_elements_text(
+              coalesce((nullif(current_setting('request.jwt.claims', true), '')::jsonb
+                        -> 'app_metadata' -> 'courtland_roles'), '[]'::jsonb)
+            ) as requested(role_text)
+       join public.user_roles u
+         on u.role = requested.role_text::public.app_role
+        and u.user_id = auth.uid()
+       where u.expires_at is null or u.expires_at > now()),
     '{}'::public.app_role[]
   );
 $$;

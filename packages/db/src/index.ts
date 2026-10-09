@@ -1,6 +1,7 @@
 export * from "./adminClient.ts";
 export * from "./client.ts";
 export * from "./enums.ts";
+export * from "./migrate.ts";
 export * from "./schema/asset.ts";
 export * from "./schema/contract.ts";
 export * from "./schema/documents.ts";

@@ -4,10 +4,16 @@ create or replace function private.current_user_roles()
 returns public.app_role[]
 language sql stable security definer set search_path = ''
 as $$
+  -- The JWT claims are read inline rather than through auth.jwt(): the base
+  -- supabase/postgres image ships auth.uid() but not auth.jwt(), and creating
+  -- objects inside the supabase-owned auth schema needs a superuser the
+  -- migration role may not have. Behaviour matches auth.jwt() exactly: an
+  -- unset or empty claims GUC yields no roles.
   select coalesce(
     (select array_agg(u.role)
        from jsonb_array_elements_text(
-              coalesce(auth.jwt() -> 'app_metadata' -> 'courtland_roles', '[]'::jsonb)
+              coalesce((nullif(current_setting('request.jwt.claims', true), '')::jsonb
+                        -> 'app_metadata' -> 'courtland_roles'), '[]'::jsonb)
             ) as requested(role_text)
        join public.user_roles u
          on u.role = requested.role_text::public.app_role

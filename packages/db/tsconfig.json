@@ -1,4 +1,4 @@
 {
   "extends": "@courtland/config/tsconfig.base.json",
-  "include": ["src/**/*.ts", "drizzle/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "drizzle/**/*.ts", "test/**/*.ts", "bin/**/*.ts"]
 }

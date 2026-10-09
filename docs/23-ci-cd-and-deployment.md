@@ -71,14 +71,16 @@ jobs:
     runs-on: ubuntu-latest
     services:
       supabase:
-        image: supabase/postgres:15.1.1
+        image: public.ecr.aws/supabase/postgres:15.19.0.004
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
-        ports: ['54322:54322']
+        ports: ['55432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:55432/postgres
     steps:
       - uses: actions/checkout@v4
       - run: pnpm install --frozen-lockfile

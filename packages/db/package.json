@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "test": "node --test test/schema-parity/test.ts",
+    "test:pg": "node --test test/schema-parity/test.ts",
+    "migrate:local": "node bin/migrate-local.ts",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

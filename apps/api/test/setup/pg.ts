@@ -5,8 +5,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyMigrations } from "@courtland/db";
 import postgres from "postgres";
-import { applyMigrations } from "../../bin/migrate.ts";
 
 export interface ScratchDatabase {
   name: string;
