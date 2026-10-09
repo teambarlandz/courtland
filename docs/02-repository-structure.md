@@ -286,7 +286,11 @@ The contract. Every request body, query parameter set and response body is a Zod
 API's validators and the OpenAPI document are generated from it, and both frontends infer their types
 from it.
 ```
-packages/types/src/
+packages/types/
+├── package.json
+├── tsconfig.json
+├── vitest.config.ts
+└── src/
 ├── index.ts
 ├── common/  pagination.ts, problem.ts, money.ts, dates.ts, enums.ts
 ├── auth/    otp.ts, profile.ts, session.ts
