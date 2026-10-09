@@ -1,4 +1,4 @@
-# 05 â€” Database Schema
+# 05 — Database Schema
 
 Column-level reference for the Supabase Postgres database. This is the authoritative document for
 structure. Behaviour and invariants are in [`04-domain-model.md`](./04-domain-model.md).
@@ -30,7 +30,7 @@ Read the conventions first; they explain most of the decisions.
 | `public` | All application tables and views | Yes, but RLS governs everything |
 | `private` | Helper functions that must not be callable over RPC | **No.** Excluded from exposed schemas |
 | `auth` | Supabase-managed identities | No, Supabase's business |
-| `storage` | Unused â€” Cloudinary holds files, not Supabase Storage | No |
+| `storage` | Unused — Cloudinary holds files, not Supabase Storage | No |
 | `extensions` | `pgcrypto`, `pg_trgm`, `unaccent`, `citext` | No |
 
 Helper functions that read across tables during policy evaluation live in `private` and are
@@ -188,7 +188,7 @@ create type sms_provider_kind as enum ('twilio', 'msg', 'termii', 'sendchamp', '
 Human-facing references are the one thing a support agent reads aloud on the phone, so they are formatted,
 sequential per entity type, and never reused. They are created in the same migration that creates the table
 using them, because a column default calling `nextval` on a sequence that does not exist yet fails at
-`create table` rather than at the first insert â€” and that is the cheap place to find out.
+`create table` rather than at the first insert — and that is the cheap place to find out.
 
 ```sql
 create sequence public.owner_reference_seq     start 1000;
@@ -219,7 +219,7 @@ reference in a trigger so the prefix is defined once, next to the table, not in 
 A trigger rather than a `default`, because a default would have to concatenate the prefix and the padded
 sequence value inline for every table, and the format would then be duplicated in eight column definitions
 and in the type definitions. The trigger is `private.set_reference()`, defined in
-[`Â§ 12.4`](#124-reference-generation) and attached to each table in the same migration as the table, before
+[`§ 12.4`](#124-reference-generation) and attached to each table in the same migration as the table, before
 its first insert. That is why the columns above are plain `reference text not null unique` with no column
 default: a default would set a bare integer, the trigger would see a non-null value, and the reference
 would ship as `1042` instead of `OWN-001042`.
@@ -278,7 +278,7 @@ comment on table public.user_roles is
 The hook writes the active set to `app_metadata.courtland_roles` as an array. RLS reads roles from the
 token. Because a JWT is a snapshot, a role change is not reflected until the token refreshes; the API
 calls `supabase.auth.admin` token invalidation for staff actions so the change takes effect within a
-session refresh cycle. See [`07-authorization-and-rls.md Â§ Staleness`](./07-authorization-and-rls.md#7-jwt-staleness-and-revocation).
+session refresh cycle. See [`07-authorization-and-rls.md § Staleness`](./07-authorization-and-rls.md#7-jwt-staleness-and-revocation).
 
 ### 5.3 `role_permissions`
 
@@ -390,10 +390,10 @@ create index owners_search_idx   on public.owners using gin (to_tsvector('englis
 Two `CHECK` constraints carry real rules and are worth stating plainly, because they are the kind of thing
 that looks like validation and should be:
 
-- **`owners_agent_requires_authority`** â€” an owner registered as an `agent` must name the principal they act
+- **`owners_agent_requires_authority`** — an owner registered as an `agent` must name the principal they act
   for. A sale agreement cannot otherwise say who authorised it, which
-  [`25-nigeria-compliance.md Â§ Sale`](./25-nigeria-compliance.md#3-land-and-property-transactions) requires.
-- **`owners_company_requires_rc`** â€” a `company` must carry a CAC registration number.
+  [`25-nigeria-compliance.md § Sale`](./25-nigeria-compliance.md#3-land-and-property-transactions) requires.
+- **`owners_company_requires_rc`** — a `company` must carry a CAC registration number.
 
 `legal_name` is the name as it appears on the title. A trigger refuses to change it once any contract on one
 of the owner's properties reaches `active`, because the executed document and the database must not disagree
@@ -401,7 +401,7 @@ about who signed it.
 
 Payout eligibility is a two-table condition, checked in `private.payout_eligible(owner_id)` rather than by a
 constraint: `kyc_status = 'verified'` **and** an active `paystack_accounts` row
-(see [`Â§ 8.7`](#87-paystack_accounts)). It cannot be a `CHECK` because it spans tables.
+(see [`§ 8.7`](#87-paystack_accounts)). It cannot be a `CHECK` because it spans tables.
 
 ### 6.2 `properties`
 
@@ -764,7 +764,7 @@ create index contract_parties_contract_idx on public.contract_parties (contract_
 ```
 
 `signature_document_id` is the one forward reference in the contract tables: `documents` is created in
-[`Â§ 10.1`](#101-documents), after this table, so the constraint cannot be inline. It is added in the
+[`§ 10.1`](#101-documents), after this table, so the constraint cannot be inline. It is added in the
 migration that creates `documents`, not left to a later cleanup:
 
 ```sql
@@ -775,7 +775,7 @@ alter table public.contract_parties
 ```
 
 An inline `references public.documents(id)` here would fail the migration with
-`relation "public.documents" does not exist`, which is a loud failure at the right time â€” but it stops the
+`relation "public.documents" does not exist`, which is a loud failure at the right time — but it stops the
 whole schema build, so the ordering is stated here instead of discovered there.
 
 ### 7.3 `contract_schedule`
@@ -863,10 +863,10 @@ Closing an occupancy is `update unit_occupancies set moved_out = $today where id
 index then automatically lets the next person be recorded as current. Nothing has to remember to flip a
 flag, so there is no state in which a unit has two current occupants or none.
 
-`contract_id` is nullable on purpose: a unit can be occupied by someone the contract does not name â€” a live-in
-domestic helper, an occupant added during a dispute â€” and refusing to record that would push the truth into a
+`contract_id` is nullable on purpose: a unit can be occupied by someone the contract does not name — a live-in
+domestic helper, an occupant added during a dispute — and refusing to record that would push the truth into a
 spreadsheet. The invariant that *is* enforced is `unit_occupancies` versus `contract_parties` for `primary`
-relationships, in [`Â§ 13`](#13-triggers-and-invariants).
+relationships, in [`§ 13`](#13-triggers-and-invariants).
 
 ## 8. Money tables
 
@@ -1228,8 +1228,8 @@ create index notices_provider_id_idx on public.notices (provider, provider_messa
 ```
 
 `dedupe_key` is the mechanism preventing a tenant receiving three arrears emails from three overlapping
-schedules. Format: `{kind}:{entity}:{id}:{period}` â€” for example
-`rent_reminder:LSE-000123:2026-11-01`. See [`13-notifications.md Â§ Deduplication`](./13-notifications.md#31-deduplication).
+schedules. Format: `{kind}:{entity}:{id}:{period}` — for example
+`rent_reminder:LSE-000123:2026-11-01`. See [`13-notifications.md § Deduplication`](./13-notifications.md#31-deduplication).
 
 ### 9.4 `disputes`
 
@@ -1486,7 +1486,7 @@ Database-backed flags, so a decision can be made without a deploy. Keys are decl
 `packages/config/flags.ts` beside `env-names.ts`, and `tooling/scripts/check-flag-usage.mjs` asserts in CI that
 the table, the TypeScript keys and the call sites agree, and that every key is read in at least two source
 files. A flag with one reader is a constant that should have been a constant. See
-[`23-ci-cd-and-deployment.md Â§ 7`](./23-ci-cd-and-deployment.md#7-feature-flags).
+[`23-ci-cd-and-deployment.md § 7`](./23-ci-cd-and-deployment.md#7-feature-flags).
 
 ```sql
 create table public.feature_flags (
@@ -1575,7 +1575,7 @@ no policy changes.
 
 The API additionally accepts a roles parameter so that jobs and staff impersonation can evaluate policies
 against an explicit identity. This is the `set_config` path described in
-[`07-authorization-and-rls.md Â§ Testing as a role`](./07-authorization-and-rls.md#6-testing-as-a-role).
+[`07-authorization-and-rls.md § Testing as a role`](./07-authorization-and-rls.md#6-testing-as-a-role).
 
 ### 12.2 Ownership helpers
 
@@ -1739,7 +1739,7 @@ end $$;
 preserved. `before insert or update of reference` rather than `before insert`, because a later migration
 that backfills references must not be silently overwritten by the trigger.
 
-The prefixes and sequences are the table in [`Â§ 4.11`](#411-reference-sequences). `private.set_reference()`
+The prefixes and sequences are the table in [`§ 4.11`](#411-reference-sequences). `private.set_reference()`
 is the only place a prefix appears in SQL, so `tooling/scripts/check-doc-freshness.mjs` can compare that one
 list against the eight `execute function` calls and catch a prefix that drifted.
 
@@ -2025,7 +2025,7 @@ to hot paths like `contract_schedule` and produce noise that buries the meaningf
 ## 14. Views
 
 All views use `security_invoker = true` so they obey the calling role's RLS. A view without this setting
-is `security definer` by default and silently bypasses every policy on its underlying tables â€” a
+is `security definer` by default and silently bypasses every policy on its underlying tables — a
 well-known Supabase data-exfiltration shape. There is a CI check for `security_invoker`.
 
 ### 14.1 `property_search`
@@ -2189,7 +2189,7 @@ order by 1;
    depend on.
 6. Every migration that adds a table must, in the same file: enable RLS, add the policies, add the
    grants, and add a pgTAP test file. A migration that adds a table without RLS fails the CI check in
-   Â§15 even if it passes locally.
+   §15 even if it passes locally.
 7. Every migration that adds an enum value must also update `packages/types/src/common/enums.ts` in the
    same pull request. A test asserts the TypeScript union and the Postgres enum have identical members.
 8. Adding a permission requires updating `packages/types/src/permissions/matrix.ts` and inserting into
@@ -2215,7 +2215,7 @@ supabase test db --db-url "postgresql://..."   # percent-encode
 | `ops_rls.test.sql` | A tenant reads tickets they raised; `internal` visibility updates are hidden from them. Staff read all. Notices are readable only by their recipient and staff. |
 | `documents_rls.test.sql` | A buyer reads released documents on their contract. A landlord reads documents on their properties. Nobody reads `private` documents. `document_access_log` is staff-only. |
 | `platform_rls.test.sql` | `audit_log` is staff-only and has no insert policy for anyone. `outbox_events` and `webhook_events` are service-role only. `idempotency_keys` readable only by their owner. |
-| `invariants.test.sql` | Every one of I1â€“I26 in [`04-domain-model.md Â§ 5`](./04-domain-model.md#5-cross-cutting-invariants). Each is a `throws_ok` on a violating write plus a `lives_ok` on a valid one. |
+| `invariants.test.sql` | Every one of I1–I26 in [`04-domain-model.md § 5`](./04-domain-model.md#5-cross-cutting-invariants). Each is a `throws_ok` on a violating write plus a `lives_ok` on a valid one. |
 | `functions.test.sql` | `allocate_pro_rata` sums to the total for a range of awkward inputs. `compute_allocations` respects the fee basis points. Reference generation produces the expected format and is unique. |
 | `money_types.test.sql` | No monetary column in any table has type `numeric`, `real` or `double precision`. A schema-level guard for the kobo rule. |
 
@@ -2289,5 +2289,5 @@ All pruning runs inside `private.prune_*()` functions called by the nightly job.
 
 - Entity semantics and state machines: [`04-domain-model.md`](./04-domain-model.md)
 - RLS policy strategy in full: [`07-authorization-and-rls.md`](./07-authorization-and-rls.md)
-- Local setup and Supabase CLI workflow: [`22-configuration-and-environments.md Â§ Database](./22-configuration-and-environments.md#42-supabase)
-- Migration order and the pgTAP gate: [`roadmap.md Â§ Phase 1â€“2](./roadmap.md#phase-1--data-foundation)
+- Local setup and Supabase CLI workflow: [`22-configuration-and-environments.md § Database](./22-configuration-and-environments.md#42-supabase)
+- Migration order and the pgTAP gate: [`roadmap.md § Phase 1–2](./roadmap.md#phase-1--data-foundation)
