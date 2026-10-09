@@ -1,0 +1,20 @@
+{
+  "name": "@courtland/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@courtland/db": "workspace:*",
+    "postgres": "catalog:"
+  },
+  "devDependencies": {
+    "@courtland/config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

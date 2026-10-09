@@ -32,8 +32,10 @@ insert into public.user_roles (user_id, role, expires_at)
 values ('30000000-0000-4000-8000-000000000003', 'admin', now() - interval '1 day');
 
 -- A shared filter view created by staff (postgres). Visible only to client_filter_manage holders.
-insert into public.admin_filter_views (id, name, entity, filters, is_shared)
-values ('31000000-0000-4000-8000-000000000001', 'Shared Clients View', 'clients', '{}', true);
+-- is_shared rows must carry an owner, per admin_filter_views_shared_needs_owner.
+insert into public.admin_filter_views (id, owner_id, name, entity, filters, is_shared)
+values ('31000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002',
+        'Shared Clients View', 'clients', '{}', true);
 
 -- ---------------------------------------------------------------------------
 -- tenant
@@ -74,29 +76,36 @@ select lives_ok(
      where id = '30000000-0000-4000-8000-000000000004' $$,
   'updating a profile that RLS decides to be a 0-row change is silent');
 
+-- The count must run as the owner: RLS hides other profiles from the tenant session that
+-- performed the (silently ignored) update.
+set local role postgres;
+
 select results_eq(
   $$ select count(*)::text from public.profiles
      where id = '30000000-0000-4000-8000-000000000004' and full_name = 'Other Tenant' $$,
   ARRAY['1'], 'another tenant''s profile was not modified');
 
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '30000000-0000-4000-8000-000000000003', true);
+
 select is(private.has_permission('user_manage'), false,
   'an expired admin grant is ignored by has_permission');
-
--- A live admin grant would count. Insert it as postgres, assert, then remove it.
+-- A live admin grant would count. The grant row already exists (expired): make it live, assert,
+-- then re-expire it. (user_id, role) is the primary key, so a second row cannot be inserted.
 set local role postgres;
-insert into public.user_roles (user_id, role) values
-  ('30000000-0000-4000-8000-000000000003', 'admin');
+update public.user_roles set expires_at = null
+ where user_id = '30000000-0000-4000-8000-000000000003' and role = 'admin';
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"30000000-0000-4000-8000-000000000003","role":"authenticated",
     "app_metadata":{"courtland_roles":["tenant","admin"]}}', true);
+
 select is(private.has_permission('user_manage'), true,
   'a live admin grant is honoured');
 
 set local role postgres;
-delete from public.user_roles
- where user_id = '30000000-0000-4000-8000-000000000003' and role = 'admin'
-   and expires_at is null;
+update public.user_roles set expires_at = now() - interval '1 day'
+ where user_id = '30000000-0000-4000-8000-000000000003' and role = 'admin';
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"30000000-0000-4000-8000-000000000003","role":"authenticated",

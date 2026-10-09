@@ -17,10 +17,13 @@ for update to authenticated
 using ( id = auth.uid() )
 with check ( id = auth.uid() );
 
+-- With check (true) here is a cross-policy hazard: Postgres may satisfy the USING of the own-row
+-- policy and the WITH CHECK of this one separately, which would let a user re-key their own row to
+-- another id. Staff edits must therefore restate the permission.
 create policy profiles_update_staff on public.profiles
 for update to authenticated
 using ( private.has_permission('user_manage') )
-with check ( true );
+with check ( id = auth.uid() or private.has_permission('user_manage') );
 
 create policy saved_searches_own on public.saved_searches
 for all to authenticated

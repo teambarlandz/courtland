@@ -55,10 +55,14 @@ with check (
   and status in ('draft','in_review','withdrawn')   -- may withdraw, may not self-publish
 );
 
+-- Postgres evaluates the USING of one policy and the WITH CHECK of a DIFFERENT policy independently
+-- for UPDATE, so a permissive "with check (true)" on the staff policy would let any owner who passes
+-- the owner policy's USING write anything (they flipped a draft to published). The check therefore
+-- repeats the staff permission, which is the only combination that is safe.
 create policy properties_update_staff on public.properties
 for update to authenticated
 using ( private.has_permission('property_update_any') )
-with check ( true );
+with check ( private.has_permission('property_update_any') );
 
 -- Delete: staff only, and never on a property with a contract
 create policy properties_delete_staff on public.properties

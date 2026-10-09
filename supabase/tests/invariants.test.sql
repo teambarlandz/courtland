@@ -66,10 +66,10 @@ values
    'draft', date '2026-01-01', date '2027-12-31', 50000000, 50000000,
    50000000, 12);
 
--- I7 fixture: one primary party on the draft lease
+-- I7 fixture: one primary party on the draft lease (party_role has no 'payer' value)
 insert into public.contract_parties (contract_id, user_id, party_name, party_role, is_primary)
 values ('a0000000-0000-4000-8000-000000000042', 'a0000000-0000-4000-8000-000000000002',
-        'Tenant', 'payer', true);
+        'Tenant', 'buyer', true);
 
 -- I8/I9 fixture: schedule seq 1 on the draft lease
 insert into public.contract_schedule (contract_id, seq, kind, due_date, amount_kobo)
@@ -80,7 +80,7 @@ insert into public.maintenance_tickets
   (id, property_id, unit_id, raised_by, category, title, description, status)
 values ('a0000000-0000-4000-8000-000000000061',
         'a0000000-0000-4000-8000-000000000022', 'a0000000-0000-4000-8000-000000000031',
-        'a0000000-0000-4000-8000-000000000002', 'plumbing', 'Tap', 'Dripping', 'open');
+        'a0000000-0000-4000-8000-000000000002', 'plumbing', 'Leaking tap', 'Dripping', 'open');
 
 -- Money fixtures: intents and pending/succeeded ledger
 insert into public.payment_intents (id, contract_id, payer_id, kind, amount_kobo, status)
@@ -266,8 +266,8 @@ select results_eq(
 select throws_ok(
   $$ insert into public.contract_parties
        (contract_id, user_id, party_name, party_role, is_primary)
-     values ('a0000000-0000-4000-8000-000000000042',
-             'a0000000-0000-4000-8000-000000000002', 'Rival Primary', 'co_signer', true) $$,
+      values ('a0000000-0000-4000-8000-000000000042',
+              'a0000000-0000-4000-8000-000000000002', 'Rival Primary', 'guarantor', true) $$,
   '23505', null, 'I7: a contract has a single primary party');
 
 -- ---------------------------------------------------------------------------

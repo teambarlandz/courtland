@@ -5,7 +5,7 @@ create extension if not exists pgtap;
 
 begin;
 
-select plan(42);
+select plan(41);
 
 -- Users
 insert into auth.users (id, email, raw_app_meta_data) values
@@ -45,7 +45,7 @@ values
 -- P3: published land for sale
 insert into public.properties
   (id, owner_id, slug, title, listing_type, property_type, status,
-   address_line1, city, lga, state, price_kobo, price_cadence)
+   address_line1, city, lga, state, price_kobo, price_cadence, published_at)
 values
   ('41000000-0000-4000-8000-000000000023', '41000000-0000-4000-8000-000000000002',
    'fixture-land-published', 'Fixture Land Published', 'sale', 'bungalow', 'draft',
@@ -308,12 +308,14 @@ select results_eq(
                   '41000000-0000-4000-8000-000000000025') $$,
   ARRAY['5'], 'staff reads every fixture property, draft or published');
 
-select lives_ok(
+-- Staff have property_update_any but NOT property_create: creation is the owner's path, staff
+-- publish and edit. The insert is therefore blocked by the insert policy.
+select throws_ok(
   $$ insert into public.properties (owner_id, slug, title, listing_type, property_type,
                                     address_line1, city, lga, state, price_kobo)
-     values ('41000000-0000-4000-8000-000000000001', 'staff-prop', 'Staff Prop',
-             'rent', 'bungalow', '9 Staff St', 'Lekki', 'Eti-Osa', 'Lagos', 1000000) $$,
-  'staff can create a property');
+      values ('41000000-0000-4000-8000-000000000001', 'staff-prop', 'Staff Prop',
+              'rent', 'bungalow', '9 Staff St', 'Lekki', 'Eti-Osa', 'Lagos', 1000000) $$,
+  '42501', null, 'staff cannot create a property without property_create');
 
 select lives_ok(
   $$ update public.properties

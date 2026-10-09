@@ -3,9 +3,9 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'profiles','owners','properties','property_media','land_details','units','contracts',
-    'contract_parties','contract_schedule','payment_intents','payments_ledger','ledger_allocations',
-    'payouts','refunds','maintenance_tickets','ticket_updates','notices','disputes','documents',
+    'profiles','owners','properties','land_details','units','contracts',
+    'contract_schedule','payment_intents','payments_ledger',
+    'payouts','refunds','maintenance_tickets','notices','disputes','documents',
     'sale_allocations','admin_filter_views','paystack_accounts'
   ] loop
     execute format(

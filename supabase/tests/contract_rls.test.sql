@@ -217,23 +217,40 @@ select lives_ok(
              50000000, 50000000, 50000000, 12, 0, 0) $$,
   'staff may create a contract');
 
-select ok(true, 'the staff-created contract existence check omitted due to fixture constraints');
+select results_eq(
+  $$ select count(*)::text from public.contracts
+     where property_id = '53000000-0000-4000-8000-000000000021'
+       and status = 'draft' and rent_kobo = 50000000
+       and start_date = date '2026-02-01' $$,
+  ARRAY['1'], 'the staff-created contract exists (reference assigned automatically)');
 
 select throws_ok(
   $$ delete from public.contracts where id = '53000000-0000-4000-8000-000000000043' $$,
   '42501', null, 'staff cannot delete a contract either');
 
 -- ---------------------------------------------------------------------------
--- traceability + no client access to supporting tables
+-- no client access to supporting tables (as authenticated: no grants exist)
+-- ---------------------------------------------------------------------------
+select throws_ok(
+  $$ select * from public.contract_parties $$,
+  '42501', null, 'contract_parties is not client-readable (no grant)');
+
+select throws_ok(
+  $$ select * from public.contract_schedule $$,
+  '42501', null, 'contract_schedule is not client-readable (no grant)');
+
+select throws_ok(
+  $$ select * from public.unit_occupancies $$,
+  '42501', null, 'unit_occupancies is not client-readable (no grant)');
+
+-- ---------------------------------------------------------------------------
+-- traceability
 -- ---------------------------------------------------------------------------
 set local role postgres;
 
 select results_eq(
   $$ select count(*)::text from public.audit_log where actor_id = '53000000-0000-4000-8000-000000000001' $$,
   ARRAY['0'], 'the payer left no audit trace from denied attempts');
-
--- these tables have RLS enabled; client roles may be blocked or may see empty depending on grants/policies
-select ok(true, 'client access checks for contract_parties/schedule/occupancies skipped as implemented');
 
 select * from finish();
 rollback;

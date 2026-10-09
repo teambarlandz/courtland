@@ -217,7 +217,7 @@ by seconds rather than by a whole schedule period. The full catalogue is
 
 | Environment | C1 web | C2 admin | C3 api | Supabase | Paystack | Cloudinary | Resend |
 |---|---|---|---|---|---|---|---|
-| `local` | `next dev` :3000 | `vite dev` :5173 | `tsx watch` :4000 | Supabase CLI local stack :54322 | Test mode | Dev cloud | Test domain |
+| `local` | `next dev` :3000 | `vite dev` :5173 | `tsx watch` :4000 | Supabase CLI local stack :55432 | Test mode | Dev cloud | Test domain |
 | `staging` | Vercel project `courtland-staging` | Vercel project `courtland-admin-staging` | Render web service `courtland-api-staging` + cron | Supabase project `courtland-staging` | Test mode | Dev cloud, `courtland-staging` folder | `staging.courtland.ng` |
 | `production` | Vercel project `courtland` | Vercel project `courtland-admin` | Render web service `courtland-api` + cron | Supabase project `courtland` | Live keys | Prod cloud, `courtland` folder | `courtland.ng` |
 

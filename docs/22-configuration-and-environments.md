@@ -256,7 +256,7 @@ build.
 NODE_ENV=development
 PORT=4000
 TZ=Africa/Lagos
-SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_URL=http://127.0.0.1:55321
 SUPABASE_ANON_KEY=<from supabase status>
 SUPABASE_SERVICE_ROLE_KEY=<from supabase status>
 PAYSTACK_SECRET_KEY=sk_test_xxxxxxxx

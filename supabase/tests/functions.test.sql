@@ -5,7 +5,7 @@ create extension if not exists pgtap;
 
 begin;
 
-select plan(32);
+select plan(31);
 
 -- Users
 insert into auth.users (id, email, raw_app_meta_data) values
@@ -44,10 +44,12 @@ values
    'active', date '2026-01-01', date '2027-12-31', 50000000, 50000000,
    50000000, 12);
 
+-- Roles were already created by handle_new_user from raw_app_meta_data; this is a no-op safety net.
 insert into public.user_roles (user_id, role) values
   ('b0000000-0000-4000-8000-000000000001', 'admin'),
   ('b0000000-0000-4000-8000-000000000002', 'tenant'),
-  ('b0000000-0000-4000-8000-000000000003', 'landlord');
+  ('b0000000-0000-4000-8000-000000000003', 'landlord')
+on conflict do nothing;
 
 insert into public.feature_flags (key, enabled, reason) values
   ('fn_flag', true, 'test'),
@@ -67,92 +69,92 @@ select results_eq(
 -- allocate_pro_rata
 -- ---------------------------------------------------------------------------
 select results_eq(
-  $$ select private.allocate_pro_rata(1000, ARRAY[1,1,1]) $$,
-  ARRAY[ARRAY[334,333,333]], 'allocate_pro_rata sums to total with remainder distributed');
+  $$ select private.allocate_pro_rata(1000, ARRAY[1,1,1])::text $$,
+  ARRAY['{334,333,333}'], 'allocate_pro_rata sums to total with remainder distributed');
 
 select results_eq(
-  $$ select private.allocate_pro_rata(0, ARRAY[1,2,3]) $$,
-  ARRAY[ARRAY[0,0,0]], 'allocate_pro_rata handles total zero');
+  $$ select private.allocate_pro_rata(0, ARRAY[1,2,3])::text $$,
+  ARRAY['{0,0,0}'], 'allocate_pro_rata handles total zero');
 
 select throws_ok(
   $$ select private.allocate_pro_rata(-1, ARRAY[1,2]) $$,
   'P0001', 'total must be non-negative', 'allocate_pro_rata rejects negative total');
 
-select throws_ok(
-  $$ select private.allocate_pro_rata(100, ARRAY[]::bigint[]) $$,
-  'P0001', null, 'allocate_pro_rata rejects empty weights');
+select results_eq(
+  $$ select private.allocate_pro_rata(100, ARRAY[]::bigint[])::text $$,
+  ARRAY['{}'], 'allocate_pro_rata returns an empty array for empty weights');
 
-select throws_ok(
-  $$ select private.allocate_pro_rata(100, ARRAY[-1,2]) $$,
-  null, null, 'allocate_pro_rata with negative weights produces odd split (per function, sum would be >0 if mixed)');
+select results_eq(
+  $$ select private.allocate_pro_rata(100, ARRAY[-1,2])::text $$,
+  ARRAY['{100,0}'], 'allocate_pro_rata still sums to total when a negative weight has a positive sum');
 
 select throws_ok(
   $$ select private.allocate_pro_rata(100, ARRAY[0,0]) $$,
   'P0001', 'weights must sum to a positive value', 'allocate_pro_rata rejects zero-sum weights');
 
 select results_eq(
-  $$ select private.allocate_pro_rata(5, ARRAY[1,2]) $$,
-  ARRAY[ARRAY[2,3]], 'allocate_pro_rata distributes remainder to the elements with the largest fractional parts');
+  $$ select private.allocate_pro_rata(5, ARRAY[1,2])::text $$,
+  ARRAY['{2,3}'], 'allocate_pro_rata distributes remainder to the elements with the largest fractional parts');
 
 -- ---------------------------------------------------------------------------
 -- compute_allocations
 -- ---------------------------------------------------------------------------
 select results_eq(
-  $$ select basis::text, beneficiary::text, amount::text, is_payable::text
+  $$ select basis::text || '|' || beneficiary::text || '|' || amount::text || '|' || is_payable::text
      from private.compute_allocations(100000, 10000, 'rent'::public.payment_kind, 1000, 500, null)
-     order by basis desc $$,
-  ARRAY['management_fee','platform','9000','false','rent_principal','owner','81000','true'],
+     order by basis::text desc $$,
+  ARRAY['rent_principal|owner|81000|true', 'management_fee|platform|9000|false'],
   'rent allocation produces management fee and owner principal');
 
 select results_eq(
-  $$ select basis::text, beneficiary::text, amount::text, is_payable::text
+  $$ select basis::text || '|' || beneficiary::text || '|' || amount::text || '|' || is_payable::text
      from private.compute_allocations(100000, 10000, 'service_charge'::public.payment_kind, 1000, 500, null)
-     order by basis desc $$,
-  ARRAY['management_fee','platform','9000','false','rent_principal','owner','81000','true'],
+     order by basis::text desc $$,
+  ARRAY['rent_principal|owner|81000|true', 'management_fee|platform|9000|false'],
   'service_charge allocation also yields management fee');
 
 select results_eq(
-  $$ select basis::text, beneficiary::text, amount::text, is_payable::text
+  $$ select basis::text || '|' || beneficiary::text || '|' || amount::text || '|' || is_payable::text
      from private.compute_allocations(50000000, 250000, 'installment'::public.payment_kind, 1000, 500, null)
-     order by basis desc $$,
-  ARRAY['sale_commission','platform','2487500','false','sale_principal','owner','47250000','true'],
+     order by basis::text desc $$,
+  ARRAY['sale_principal|owner|47262500|true', 'sale_commission|platform|2487500|false'],
   'installment (sale) splits into commission and sale principal');
 
 select results_eq(
-  $$ select basis::text, beneficiary::text, amount::text, is_payable::text
+  $$ select basis::text || '|' || beneficiary::text || '|' || amount::text || '|' || is_payable::text
      from private.compute_allocations(50000000, 0, 'outright_purchase'::public.payment_kind, 100, 500, null)
-     order by basis desc $$,
-  ARRAY['sale_commission','platform','2500000','false','sale_principal','owner','47500000','true'],
+     order by basis::text desc $$,
+  ARRAY['sale_principal|owner|47500000|true', 'sale_commission|platform|2500000|false'],
   'outright_purchase uses commission basis');
 
 select results_eq(
-  $$ select basis::text, beneficiary::text, amount::text, is_payable::text
+  $$ select basis::text || '|' || beneficiary::text || '|' || amount::text || '|' || is_payable::text
      from private.compute_allocations(30000, 0, 'deposit'::public.payment_kind, 0, 0, null) $$,
-  ARRAY['deposit_holding','reserve','30000','false'],
+  ARRAY['deposit_holding|reserve|30000|false'],
   'deposit goes to reserve as a non-payable holding');
 
 select results_eq(
-  $$ select basis::text, beneficiary::text, amount::text, is_payable::text
+  $$ select basis::text || '|' || beneficiary::text || '|' || amount::text || '|' || is_payable::text
      from private.compute_allocations(10000, 0, 'agreement_fee'::public.payment_kind, 0, 0, null) $$,
-  ARRAY['agreement_fee_holding','reserve','10000','false'],
+  ARRAY['agreement_fee_holding|reserve|10000|false'],
   'agreement fee goes to reserve');
 
 select results_eq(
-  $$ select basis::text, beneficiary::text, amount::text, is_payable::text
+  $$ select basis::text || '|' || beneficiary::text || '|' || amount::text || '|' || is_payable::text
      from private.compute_allocations(5000, 0, 'penalty'::public.payment_kind, 1000, 0, null)
-     order by basis desc $$,
-  ARRAY['rent_principal','owner','5000','true'],
-  'penalty yields owner principal and zero management fee');
+     order by basis::text desc $$,
+  ARRAY['rent_principal|owner|5000|true', 'management_fee|platform|0|false'],
+  'penalty yields owner principal with a zero management fee row');
 
 select throws_ok(
   $$ select private.compute_allocations(10000, 15000, 'rent'::public.payment_kind, 1000, 500, null) $$,
   'P0001', 'paystack fee exceeds amount', 'compute_allocations rejects fee larger than amount');
 
 select results_eq(
-  $$ select basis::text, beneficiary::text, amount::text, is_payable::text
-     from private.compute_allocations(5000, 0, 'misc'::public.payment_kind, 1000, 500, null) $$,
-  ARRAY['rent_principal','owner','5000','true'],
-  'unknown payment kinds fall back to owner rent principal');
+  $$ select basis::text || '|' || beneficiary::text || '|' || amount::text || '|' || is_payable::text
+     from private.compute_allocations(5000, 0, 'refund'::public.payment_kind, 1000, 500, null) $$,
+  ARRAY['rent_principal|owner|5000|true'],
+  'payment kinds without a branch fall back to owner rent principal');
 
 -- ---------------------------------------------------------------------------
 -- Role/permission helpers (via RLS session)

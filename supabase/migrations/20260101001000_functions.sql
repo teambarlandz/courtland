@@ -134,10 +134,10 @@ language plpgsql immutable set search_path = ''
 as $$
 declare
   sum_w bigint;
-  remainders numeric[];
   base bigint;
   extra bigint;
-  i int;
+  v_idx integer;
+  v_grant record;
   result bigint[] := '{}';
   running bigint := 0;
 begin
@@ -150,18 +150,23 @@ begin
     raise exception 'weights must sum to a positive value';
   end if;
   base := total / sum_w;
-  select array_agg((total * w) % sum_w order by i)
-    into remainders
-    from unnest(weights) with ordinality as t(w, i);
   extra := total - (base * sum_w);
-  for i in 1..array_length(weights,1) loop
-    result := result || (base + case when (remainders[i] > 0
-                            and (extra - (select count(*) from unnest(remainders)
-                                          where unnest > remainders[i]) + i - 1) < extra)
-                            then 1 else 0 end);
-    running := running + result[array_length(result,1)];
+  -- Floor everyone, then hand the `extra` units to the largest remainders (ties to earlier index).
+  for v_idx in 1..array_length(weights,1) loop
+    result := result || base;
+    running := running + base;
   end loop;
-  -- Fix rounding drift on the last element. The sum is the invariant that matters.
+  -- extra is always less than sum_w, so the limit can never run past the array.
+  for v_grant in
+    select t.i as idx
+      from unnest(weights) with ordinality as t(w, i)
+     order by (total * t.w) % sum_w desc, t.i asc
+     limit extra
+  loop
+    result[v_grant.idx] := result[v_grant.idx] + 1;
+    running := running + 1;
+  end loop;
+  -- Any residual drift lands on the last element; the sum is the invariant that matters.
   result[array_length(result,1)] := result[array_length(result,1)] + (total - running);
   return result;
 end;
@@ -193,21 +198,21 @@ begin
   elsif p_kind in ('installment','outright_purchase') then
     fee := (net * p_commission_bps) / 10000;
     return query
-      select 'sale_commission', 'platform', fee, false
+      select 'sale_commission'::public.allocation_basis, 'platform'::public.beneficiary_type, fee, false
       union all
-      select 'sale_principal', 'owner', net - fee, true;
+      select 'sale_principal'::public.allocation_basis, 'owner'::public.beneficiary_type, net - fee, true;
   elsif p_kind = 'deposit' then
-    return query select 'deposit_holding', 'reserve', net, false;
+    return query select 'deposit_holding'::public.allocation_basis, 'reserve'::public.beneficiary_type, net, false;
   elsif p_kind = 'agreement_fee' then
-    return query select 'agreement_fee_holding', 'reserve', net, false;
+    return query select 'agreement_fee_holding'::public.allocation_basis, 'reserve'::public.beneficiary_type, net, false;
   elsif p_kind = 'penalty' then
     fee := 0;
     return query
-      select 'management_fee', 'platform', fee, false
+      select 'management_fee'::public.allocation_basis, 'platform'::public.beneficiary_type, fee, false
       union all
-      select 'rent_principal', 'owner', net, true;
+      select 'rent_principal'::public.allocation_basis, 'owner'::public.beneficiary_type, net, true;
   else
-    return query select 'rent_principal', 'owner', net, true;
+    return query select 'rent_principal'::public.allocation_basis, 'owner'::public.beneficiary_type, net, true;
   end if;
 end;
 $$;

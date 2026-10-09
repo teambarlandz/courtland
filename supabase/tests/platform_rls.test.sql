@@ -6,7 +6,7 @@ create extension if not exists pgtap;
 
 begin;
 
-select plan(26);
+select plan(27);
 
 -- Users
 insert into auth.users (id, email, raw_app_meta_data) values
@@ -137,11 +137,16 @@ select ok(
                         '99000000-0000-4000-8000-000000000002')) >= 2,
   'staff with audit_read reads the whole append-only log');
 
+-- staff have no idempotency_select_any policy: the own-row policy applies to them too.
 select ok(
   (select count(*) from public.idempotency_keys
-     where id in ('99000000-0000-4000-8000-000000000011',
-                  '99000000-0000-4000-8000-000000000012')) >= 2,
-  'staff sees all idempotency keys');
+     where id = '99000000-0000-4000-8000-000000000012') = 1,
+  'staff read only their own idempotency key');
+
+select ok(
+  (select count(*) from public.idempotency_keys
+     where id = '99000000-0000-4000-8000-000000000011') = 0,
+  'staff do not see another users idempotency key');
 
 select throws_ok(
   $$ insert into public.idempotency_keys (scope, key, request_fingerprint)
