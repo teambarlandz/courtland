@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { loadEnv } from "../../src/env.ts";
 import type { Env } from "../../src/env.ts";
+import { loadEnv } from "../../src/env.ts";
 
 const BASE = {
   NODE_ENV: "test",
