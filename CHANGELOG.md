@@ -88,3 +88,30 @@ generic default) — implemented with pinned `public.ecr.aws/supabase/postgres:1
 `55432:5432`, doc updated. `migrate:local` requires a FRESH database by design (fails loudly
 otherwise). pgTAP-in-CI deferred (needs the `pgtap` extension on the service DB). Result: CI
 green on both jobs (confirmed by the developer).
+
+---
+
+## Phase 2 — Contracts and types — 2026-10-09
+
+**Roadmap said:** `packages/types` (Zod) + `packages/utils` (pure functions) + `apps/api`
+`openapi.ts`/`env.ts` + committed `docs/openapi/courtland.json`; table-driven tests, lifecycle
+test, fast-check properties (1000 runs); five exit criteria, two dead-code gates.
+
+**Did:** all of it. Tests: types 13 files × 78, utils 8 files × 45 (incl. the 1000-run
+`splitAnnualRent`/`allocateProRata` properties), api 2 files × 7. OpenAPI: 112 endpoints
+transcribed from the §10 catalogue (count verified against the spec: 9+22+14+18+9+6+8+18+8),
+build throws on any entry missing request/response. `pnpm -r typecheck/lint/test/build`,
+`check:links`, `check:freshness`, `pnpm knip`, `check:permissions`, `check:drift` green.
+
+### Deviations from the plan, with reasons
+
+| # | Roadmap/docs said | Repository does | Why |
+|---|---|---|---|
+| 1 | Seed prose: 99 grants; `matrix.ts` holds "99 grants" | `matrix.ts` holds the committed **100** (56/22/12/10); docs/07 prose undercounts by one (`admin`+`payment_create_own`) | Matrix must reconcile with the seed migration, not the prose — the parity script compares against seed rows. |
+| 2 | `check-permission-parity` scans files "touching" the table | Scans only files that INSERT into it | The old filter matched `functions.sql`/`identity.sql` enum literals and comments (`phone_only`, `courtland_roles`, …) and failed on a valid tree. Intent (seeded rows) unchanged. |
+| 3 | OpenAPI "via zod-openapi" (docs/08 §12) | Built with `z.toJSONSchema` (zod v4 builtin), hand-rolled paths/parameters | No extra dependency; OpenAPI 3.1 is JSON Schema 2020-12, which is what the builtin emits. Deterministic output for the drift gate. |
+| 4 | Reference prefixes in docs/04 §6, docs/02 (`LSE-`, `SAL-`, `PMT-`, …) | `formatReference` uses the SQL truth (`OWN-`/`PRT-`/`CLT-`/`ALC-`/`PAY-`/`MNT-`/`DSP-`/`DOC-`, payouts `PO-YYYY-MM-####` app-generated) | The doc lists are stale vs the `set_reference` trigger + seed sequences (found during research). |
+| 5 | Tests at `packages/utils/src/*/test.ts` (+ one types example path) | Types tests at `src/<area>/test.ts`, utils at `src/<module>/test.ts`, api at `test/<area>/test.ts` | Consistent per-area layout in all three packages; `vitest.config.ts` include patterns added per package (no config file was listed — needed to run them). |
+| 6 | `KoboAmount` for all money | Intent/ledger amounts require `> 0` | DB `CHECK (amount_kobo > 0)`; zero-able fields keep `KoboAmount` (min 0). Caught by a failing test, fixed in the schema. |
+| 7 | `AppRole` in permissions/roles | Re-exported from common/enums | Duplicate definition collided on `export *`; single canonical definition. |
+| 8 | `check-generated-drift` + `gen:openapi` | Implemented exactly as the (previously vacuous) script expects | Script now activates and passes; first run proved the committed JSON is byte-identical to a fresh generation. |

@@ -36,11 +36,14 @@ function main() {
   const problems = [];
   const matrixSlugs = slugs(readFileSync(matrixPath, "utf8"));
 
-  // role_permissions seeds: quoted slugs in migrations that touch the table.
+  // role_permissions seeds: quoted slugs in the VALUES of migrations that INSERT
+  // into the table. Files that merely query it (has_permission) or name it in
+  // comments carry enum literals and prose that are not permissions, so a
+  // "mentions the table" filter over-matches and fails on valid trees.
   const seeded = new Map();
   for (const file of walk(join(root, MIGRATIONS))) {
     const text = readFileSync(file, "utf8");
-    if (!text.includes("role_permissions")) continue;
+    if (!/insert\s+into\s+(public\.)?role_permissions[\s(]/i.test(text)) continue;
     for (const s of slugs(text)) seeded.set(s, relative(root, file));
   }
   for (const s of matrixSlugs) {

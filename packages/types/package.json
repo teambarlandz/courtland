@@ -1,24 +1,22 @@
 {
-  "name": "@courtland/api",
+  "name": "@courtland/types",
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "vitest run",
-    "gen:openapi": "node src/openapi.ts"
+    "test": "vitest run"
   },
   "dependencies": {
-    "@courtland/db": "workspace:*",
-    "@courtland/types": "workspace:*",
-    "postgres": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@courtland/config": "workspace:*",
-    "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
