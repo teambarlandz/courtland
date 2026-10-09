@@ -115,3 +115,15 @@ build throws on any entry missing request/response. `pnpm -r typecheck/lint/test
 | 6 | `KoboAmount` for all money | Intent/ledger amounts require `> 0` | DB `CHECK (amount_kobo > 0)`; zero-able fields keep `KoboAmount` (min 0). Caught by a failing test, fixed in the schema. |
 | 7 | `AppRole` in permissions/roles | Re-exported from common/enums | Duplicate definition collided on `export *`; single canonical definition. |
 | 8 | `check-generated-drift` + `gen:openapi` | Implemented exactly as the (previously vacuous) script expects | Script now activates and passes; first run proved the committed JSON is byte-identical to a fresh generation. |
+
+### Phase 2 follow-up — 2026-10-09 (commits `ba31564`, `fedb91a`)
+
+Two small pushes after the phase commit, no plan changes:
+
+- `ba31564`: `check:freshness` failed on the new `packages/types/tsconfig.json` /
+  `vitest.config.ts` — the `packages/types/**` rule requires docs/02 to name them. Fixed by
+  documenting the package roots in docs/02 §5.2 (honest fix, not a gate tweak).
+- `fedb91a`: CI `verify` failed on biome import order in `apps/api/test/env/test.ts`
+  (`import type` sorts first). Root cause was process, not tooling: the import was added after
+  the last local lint run. Fixed with `biome check --write`; rule going forward is a full gate
+  pass after the final edit, immediately before staging.
