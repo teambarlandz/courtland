@@ -21,6 +21,7 @@ declare global {
   namespace Express {
     interface Request {
       auth?: ReqAuth;
+      authToken?: string;
     }
   }
 }
@@ -58,6 +59,7 @@ export function authenticate(verifier: AuthVerifier) {
     }
     try {
       req.auth = await verifier(found.token);
+      req.authToken = found.token;
       next();
     } catch (error) {
       next(error);
@@ -126,7 +128,7 @@ const UNSAFE_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 // missing token is not confused with a missing session.
 export function requireCsrf(allowedOrigins: readonly string[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.auth || req.auth.via !== "cookie" || !UNSAFE_METHODS.has(req.method)) {
+    if (req.auth?.via !== "cookie" || !UNSAFE_METHODS.has(req.method)) {
       next();
       return;
     }

@@ -17,6 +17,8 @@ export interface GoTrueAdmin {
   listUsers(): Promise<AdminUserRecord[]>;
   inviteUser(email: string): Promise<AdminUserRecord>;
   updateUser(userId: string, patch: { banned?: boolean }): Promise<AdminUserRecord>;
+  updatePhone(userId: string, phone: string): Promise<void>;
+  signOut(token: string): Promise<void>;
   setRoles(userId: string, roles: AppRole[]): Promise<void>;
   getRoles(userId: string): Promise<AppRole[]>;
 }
@@ -44,6 +46,14 @@ export function supabaseGoTrueAdmin(admin: SupabaseClient): GoTrueAdmin {
       if (error || !data.user) throw new Error(`update failed: ${error?.message ?? "no user"}`);
       return { id: data.user.id };
     },
+    async updatePhone(userId: string, phone: string): Promise<void> {
+      const { error } = await admin.auth.admin.updateUserById(userId, { phone });
+      if (error) throw new Error(`phone update failed: ${error.message}`);
+    },
+    async signOut(token: string): Promise<void> {
+      const { error } = await admin.auth.admin.signOut(token, "global");
+      if (error) throw new Error(`sign out failed: ${error.message}`);
+    },
     async setRoles(userId: string, roles: AppRole[]): Promise<void> {
       const { error: clearError } = await admin.from("user_roles").delete().eq("user_id", userId);
       if (clearError) throw new Error(`role clear failed: ${clearError.message}`);
@@ -67,6 +77,7 @@ export function memoryGoTrueAdmin(
 ): GoTrueAdmin & {
   users: AdminUserRecord[];
   roles: Record<string, AppRole[]>;
+  signedOut: string[];
 } {
   const state = {
     users: users.map((u) => ({ ...u })),
@@ -74,10 +85,12 @@ export function memoryGoTrueAdmin(
       string,
       AppRole[]
     >,
+    signedOut: [] as string[],
   };
   return {
     users: state.users,
     roles: state.roles,
+    signedOut: state.signedOut,
     async listUsers(): Promise<AdminUserRecord[]> {
       return state.users.map((u) => ({ ...u }));
     },
@@ -91,6 +104,14 @@ export function memoryGoTrueAdmin(
       if (!user) throw new Error("user not found");
       user.banned = patch.banned ?? user.banned;
       return { ...user };
+    },
+    async updatePhone(userId: string, phone: string): Promise<void> {
+      const user = state.users.find((u) => u.id === userId);
+      if (!user) throw new Error("user not found");
+      user.phone = phone;
+    },
+    async signOut(token: string): Promise<void> {
+      state.signedOut.push(token);
     },
     async setRoles(userId: string, next: AppRole[]): Promise<void> {
       state.roles[userId] = [...next];

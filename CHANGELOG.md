@@ -179,3 +179,18 @@ green. `check-flag-usage`/`check-permission-parity` pass untouched.
 | 6 | Session cookie contents | Single HttpOnly cookie carrying `{access_token, refresh_token}` JSON | Browser clients must refresh without ever seeing a token in JavaScript; the readable `courtland-csrf` cookie carries only the double-submit token. |
 | 7 | `v1Router`, option interfaces, helper functions exported | Unexported until used | Knip `exports: error` on non-entry files; Phase 4 re-exports nothing speculatively (same discipline as Phase 3). |
 | 8 | `tsdown/config.ts` | Knip entry added | Knip does not auto-detect tsdown configs; honest config hygiene from the Phase 3 pass. |
+
+### Phase 4 follow-up — API audit fixes — 2026-10-09
+
+A line-by-line audit of the Phase 4 routes (prompted by review) found routes returning
+stubbed data or skipping documented side effects. All fixed before any client exists:
+
+| # | Gap | Fix |
+|---|---|---|
+| 1 | Signout cleared cookies but never revoked server-side (docs: revokes the family) | `GoTrueAdmin.signOut` (global scope) via the admin client; route revokes best-effort, still clears cookies on failure; CSRF now required on signout for cookie callers |
+| 2 | `change-phone` verified the OTP and returned, persisting nothing | Persists to GoTrue (`updatePhone`) and `profiles.phone_e164`; both must succeed |
+| 3 | `me`/`verify` returned null names/avatars and empty roles | `ProfileStore.getProfile` serves stored data; verify resolves the full identity through the verifier so roles/permissions are populated |
+| 4 | `PATCH /me` dropped `avatarPublicId` | Persists both name and avatar; response re-reads the store |
+| 5 | No rate limit on OTP verify (the brute-force surface) | Dedicated limiter (10/min/number+IP); request/resend keep theirs |
+| 6 | Untested routes: signout, resend cooldown, PATCH me, change-phone, invite, csrf endpoint | 7 new tests (44 api tests total); signout asserts the revocation call, change-phone asserts both stores |
+| 7 | No `migrate` npm script | Added (`node bin/migrate.ts`) — deploy commands run scripts, not paths |

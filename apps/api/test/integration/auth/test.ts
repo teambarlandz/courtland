@@ -62,9 +62,11 @@ const otp = createOtpService({
     async requestOtp(_phone: string): Promise<void> {},
     async verifyOtp(phone: string, code: string): Promise<GoTrueSession> {
       if (code !== "123456") throw new Error("invalid code");
+      // The fake issues the fixture's own token so the stub verifier below
+      // resolves it back to the tenant identity, like GoTrue would.
       const session: GoTrueSession = {
         user: { id: TENANT.auth.userId, email: "tenant@courtland.test", phone },
-        accessToken: "access-tenant",
+        accessToken: TENANT.token,
         refreshToken: "refresh-tenant",
       };
       otpSessions.set(phone, session);
@@ -95,6 +97,7 @@ const app = createApp({
       otp,
       profiles,
       owners,
+      userAdmin: goTrueAdmin,
       allowedOrigins: ["https://courtland.test"],
       cookieDomain: "courtland.test",
       logger: silentLogger(),
@@ -283,5 +286,73 @@ describe("auth integration", () => {
       expect(res.status).toBe(200);
       expect(res.body.data.id).toBe(fixture.auth.userId);
     }
+  });
+
+  it("signout revokes server-side and clears cookies", async () => {
+    const res = await request(app).post("/v1/auth/signout").set(bearer(TENANT.token));
+    expect(res.status).toBe(200);
+    expect(goTrueAdmin.signedOut).toContain(TENANT.token);
+    const cookies = res.headers["set-cookie"] as unknown as string[];
+    expect(cookies.some((c) => c.startsWith("session=;"))).toBe(true);
+  });
+
+  it("resend respects the 60-second cooldown", async () => {
+    const first = await request(app).post("/v1/auth/otp/resend").send({
+      phoneE164: "+2348066666666",
+    });
+    expect(first.status).toBe(202);
+    const second = await request(app).post("/v1/auth/otp/resend").send({
+      phoneE164: "+2348066666666",
+    });
+    expect(second.status).toBe(429);
+    expect(second.body.code).toBe("rate_limited");
+  });
+
+  it("patch me persists name and avatar", async () => {
+    const res = await request(app)
+      .patch("/v1/auth/me")
+      .set(cookie(TENANT_COOKIE.token))
+      .set("x-csrf-token", "csrf-3")
+      .set("Cookie", `session=${TENANT_COOKIE.token}; courtland-csrf=csrf-3`)
+      .set("Origin", "https://courtland.test")
+      .send({ fullName: "Ada Tenant", avatarPublicId: "avatars/ada" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.fullName).toBe("Ada Tenant");
+    expect(res.body.data.avatarPublicId).toBe("avatars/ada");
+    expect(profiles.rows[TENANT.auth.userId]?.fullName).toBe("Ada Tenant");
+  });
+
+  it("change-phone verifies the code and persists the number", async () => {
+    const res = await request(app)
+      .post("/v1/auth/change-phone")
+      .set(cookie(TENANT_COOKIE.token))
+      .set("x-csrf-token", "csrf-4")
+      .set("Cookie", `session=${TENANT_COOKIE.token}; courtland-csrf=csrf-4`)
+      .set("Origin", "https://courtland.test")
+      .send({ newPhoneE164: "+2348055555555", code: "123456" });
+    expect(res.status).toBe(200);
+    expect(res.body.phoneE164).toBe("+2348055555555");
+    expect(profiles.rows[TENANT.auth.userId]?.phoneE164).toBe("+2348055555555");
+    expect(goTrueAdmin.users.find((u) => u.id === TENANT.auth.userId)?.phone).toBe(
+      "+2348055555555",
+    );
+  });
+
+  it("invite creates a staff user", async () => {
+    const res = await request(app)
+      .post("/v1/admin/users/invite")
+      .set(bearer(ADMIN.token))
+      .send({ email: "newstaff@courtland.test" });
+    expect(res.status).toBe(201);
+    expect(res.body.data.email).toBe("newstaff@courtland.test");
+    expect(goTrueAdmin.users.some((u) => u.email === "newstaff@courtland.test")).toBe(true);
+  });
+
+  it("csrf endpoint mints a token without auth", async () => {
+    const res = await request(app).get("/v1/auth/csrf");
+    expect(res.status).toBe(200);
+    expect(typeof res.body.csrfToken).toBe("string");
+    const cookies = res.headers["set-cookie"] as unknown as string[];
+    expect(cookies.some((c) => c.startsWith("courtland-csrf="))).toBe(true);
   });
 });

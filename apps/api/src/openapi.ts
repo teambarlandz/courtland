@@ -157,6 +157,9 @@ const ReconciliationSummary = z.strictObject({
 const QueueDepth = z.strictObject({ depth: z.number().int().min(0) });
 const JobEnqueue = z.strictObject({ payload: z.record(z.string(), z.unknown()).default({}) });
 const DownloadLink = z.strictObject({ url: z.string().url() });
+const AdminInvite = z.strictObject({ email: z.email() });
+const InvitedUser = z.strictObject({ id: z.uuid(), email: z.string().nullable() });
+const SuspendedUser = z.strictObject({ id: z.uuid(), banned: z.boolean() });
 
 export const ENDPOINTS: EndpointDef[] = [
   // Auth (docs/08 §10 Auth)
@@ -1208,6 +1211,26 @@ export const ENDPOINTS: EndpointDef[] = [
     idempotency: false,
     request: { params: IdParam, body: T.AdminUserRolesPatch },
     response: T.dataOf(T.AdminUser),
+  },
+  {
+    method: "post",
+    path: "/v1/admin/users/invite",
+    operationId: "inviteAdminUser",
+    summary: "Invite a staff user",
+    permission: "user_manage",
+    idempotency: false,
+    request: { body: AdminInvite },
+    response: T.dataOf(InvitedUser),
+  },
+  {
+    method: "post",
+    path: "/v1/admin/users/:id/suspend",
+    operationId: "suspendAdminUser",
+    summary: "Suspend a user",
+    permission: "user_manage",
+    idempotency: false,
+    request: { params: IdParam },
+    response: T.dataOf(SuspendedUser),
   },
   // System + integrations
   {

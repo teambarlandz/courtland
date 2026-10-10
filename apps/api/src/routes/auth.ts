@@ -20,6 +20,8 @@ import type { AuthVerifier } from "../middleware/auth.ts";
 import { authenticate, requireCsrf, supabaseSessionVerifier } from "../middleware/auth.ts";
 import { rateLimit } from "../middleware/rateLimit.ts";
 import { validate } from "../middleware/validate.ts";
+import type { GoTrueAdmin } from "../services/admin/users.ts";
+import { supabaseGoTrueAdmin } from "../services/admin/users.ts";
 import type { OwnerStore } from "../services/auth/identityLink.ts";
 import { supabaseOwnerStore } from "../services/auth/identityLink.ts";
 import type { ProfileStore } from "../services/auth/onboarding.ts";
@@ -43,6 +45,7 @@ interface AuthRouteDeps {
   otp: OtpService;
   profiles: ProfileStore;
   owners: OwnerStore;
+  userAdmin: GoTrueAdmin;
   allowedOrigins: readonly string[];
   cookieDomain: string;
   logger?: Logger;
@@ -79,6 +82,13 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
     key: (req) =>
       `${req.ip ?? "unknown"}:${String((req.body as { phoneE164?: unknown })?.phoneE164 ?? "")}`,
   });
+  // Code entry is the brute-force surface: tighter than request, same key.
+  const verifyByNumberAndIp = rateLimit({
+    windowMs: 60_000,
+    max: 10,
+    key: (req) =>
+      `${req.ip ?? "unknown"}:${String((req.body as { phoneE164?: unknown })?.phoneE164 ?? "")}`,
+  });
 
   router.post(
     "/otp/request",
@@ -95,39 +105,45 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
     },
   );
 
-  router.post("/otp/verify", validate({ body: OtpVerify }), async (req, res, next) => {
-    try {
-      const { phoneE164, code } = OtpVerify.parse(req.body);
-      const session = await deps.otp.verifyOtp(phoneE164, code);
-      const state = await deps.profiles
-        .getOnboardingState(session.user.id)
-        .catch(() => "phone_only");
-      await advanceOnboarding(deps.profiles, session.user.id, "verify").catch(() => undefined);
-      const response = buildSessionResponse(
-        toProfile({
-          id: session.user.id,
-          fullName: null,
-          email: session.user.email ?? null,
-          phoneE164: session.user.phone ?? phoneE164,
-          avatarPublicId: null,
-          onboardingState: state === "phone_only" ? "verified" : state,
-          roles: [],
-          permissions: [],
-        }),
-      );
-      const csrf = generateCsrfToken();
-      const cookies = sessionCookies(
-        session.accessToken,
-        session.refreshToken,
-        csrf,
-        deps.cookieDomain,
-      );
-      res.setHeader("Set-Cookie", [cookies.session, cookies.csrf]);
-      res.json(response);
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.post(
+    "/otp/verify",
+    verifyByNumberAndIp,
+    validate({ body: OtpVerify }),
+    async (req, res, next) => {
+      try {
+        const { phoneE164, code } = OtpVerify.parse(req.body);
+        const session = await deps.otp.verifyOtp(phoneE164, code);
+        await advanceOnboarding(deps.profiles, session.user.id, "verify").catch(() => undefined);
+        // Resolve the full identity (roles included) through the verifier so
+        // the bootstrap response never ships empty roles.
+        const auth = await deps.verifier(session.accessToken);
+        const stored = await deps.profiles.getProfile(session.user.id).catch(() => null);
+        const response = buildSessionResponse(
+          toProfile({
+            id: session.user.id,
+            fullName: stored?.fullName ?? null,
+            email: session.user.email ?? auth.email ?? null,
+            phoneE164: session.user.phone ?? phoneE164,
+            avatarPublicId: stored?.avatarPublicId ?? null,
+            onboardingState: stored?.onboardingState ?? "verified",
+            roles: auth.roles,
+            permissions: auth.permissions,
+          }),
+        );
+        const csrf = generateCsrfToken();
+        const cookies = sessionCookies(
+          session.accessToken,
+          session.refreshToken,
+          csrf,
+          deps.cookieDomain,
+        );
+        res.setHeader("Set-Cookie", [cookies.session, cookies.csrf]);
+        res.json(response);
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   router.post(
     "/otp/resend",
@@ -144,25 +160,39 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
     },
   );
 
-  router.post("/signout", authenticate(deps.verifier), async (_req, res) => {
-    const cleared = clearSessionCookies(deps.cookieDomain);
-    res.setHeader("Set-Cookie", [cleared.session, cleared.csrf]);
-    res.json({ message: "Signed out." });
-  });
+  router.post(
+    "/signout",
+    authenticate(deps.verifier),
+    requireCsrf(deps.allowedOrigins),
+    async (req, res, next) => {
+      try {
+        // Revoke the refresh family server-side; cookie clearing below still
+        // runs if revocation fails, so the browser always ends logged out.
+        if (req.authToken) {
+          await deps.userAdmin.signOut(req.authToken).catch(() => undefined);
+        }
+        const cleared = clearSessionCookies(deps.cookieDomain);
+        res.setHeader("Set-Cookie", [cleared.session, cleared.csrf]);
+        res.json({ message: "Signed out." });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   router.get("/me", authenticate(deps.verifier), async (req, res, next) => {
     try {
       const auth = req.auth;
       if (!auth) throw new UnauthenticatedError();
-      const state = await deps.profiles.getOnboardingState(auth.userId).catch(() => "phone_only");
+      const stored = await deps.profiles.getProfile(auth.userId).catch(() => null);
       res.json({
         data: toProfile({
           id: auth.userId,
-          fullName: null,
+          fullName: stored?.fullName ?? null,
           email: auth.email ?? null,
-          phoneE164: auth.phone ?? null,
-          avatarPublicId: null,
-          onboardingState: state,
+          phoneE164: stored?.phoneE164 ?? auth.phone ?? null,
+          avatarPublicId: stored?.avatarPublicId ?? null,
+          onboardingState: stored?.onboardingState ?? "phone_only",
           roles: auth.roles,
           permissions: auth.permissions,
         }),
@@ -182,23 +212,23 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
         const auth = req.auth;
         if (!auth) throw new UnauthenticatedError();
         const patch = ProfilePatch.parse(req.body);
-        const state = await deps.profiles.getOnboardingState(auth.userId).catch(() => "phone_only");
-        await advanceOnboarding(
-          deps.profiles,
-          auth.userId,
-          "save-profile",
-          patch.fullName !== undefined && patch.fullName !== null
+        await advanceOnboarding(deps.profiles, auth.userId, "save-profile", {
+          ...(patch.fullName !== undefined && patch.fullName !== null
             ? { fullName: patch.fullName }
-            : undefined,
-        ).catch(() => undefined);
+            : {}),
+          ...(patch.avatarPublicId !== undefined && patch.avatarPublicId !== null
+            ? { avatarPublicId: patch.avatarPublicId }
+            : {}),
+        }).catch(() => undefined);
+        const stored = await deps.profiles.getProfile(auth.userId).catch(() => null);
         res.json({
           data: toProfile({
             id: auth.userId,
-            fullName: patch.fullName ?? null,
+            fullName: stored?.fullName ?? patch.fullName ?? null,
             email: auth.email ?? null,
-            phoneE164: auth.phone ?? null,
-            avatarPublicId: patch.avatarPublicId ?? null,
-            onboardingState: state,
+            phoneE164: stored?.phoneE164 ?? auth.phone ?? null,
+            avatarPublicId: stored?.avatarPublicId ?? patch.avatarPublicId ?? null,
+            onboardingState: stored?.onboardingState ?? "phone_only",
             roles: auth.roles,
             permissions: auth.permissions,
           }),
@@ -217,7 +247,7 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
     async (req, res, next) => {
       try {
         const auth = req.auth;
-        if (!auth || !auth.phone) throw new UnauthenticatedError();
+        if (!auth?.phone) throw new UnauthenticatedError();
         const { phoneE164 } = LinkOwner.parse(req.body);
         if (phoneE164 !== auth.phone)
           throw new NotFoundError("No pending owner row for this number.");
@@ -241,6 +271,10 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
         if (!auth) throw new UnauthenticatedError();
         const { newPhoneE164, code } = ChangePhone.parse(req.body);
         await deps.otp.verifyOtp(newPhoneE164, code);
+        // Persist everywhere the number is read from: GoTrue owns phone auth,
+        // profiles mirrors it for queries. Both must succeed together.
+        await deps.userAdmin.updatePhone(auth.userId, newPhoneE164);
+        await deps.profiles.updateProfile(auth.userId, { phoneE164: newPhoneE164 });
         res.json({ message: "Number changed.", phoneE164: newPhoneE164 });
       } catch (error) {
         next(error);
@@ -279,6 +313,7 @@ export function wireAuthRoutes(wiring: SupabaseAuthWiring) {
     }),
     profiles: supabaseProfileStore(anon),
     owners: supabaseOwnerStore(admin),
+    userAdmin: supabaseGoTrueAdmin(admin),
     allowedOrigins: wiring.allowedOrigins,
     cookieDomain: wiring.cookieDomain,
     logger: wiring.logger,
