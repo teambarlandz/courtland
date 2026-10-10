@@ -153,3 +153,29 @@ harness routes mounted at `/t/*`). `GET /health` verified without auth/rate-limi
 | 6 | SQL `allocate_pro_rata` | Untouched (still global-floor) | pgTAP pins its current outputs; changing it here is out of scope. WARNING for Phase 12: it is wrong for non-uniform weights — unify with the utils implementation when payment code calls it. |
 | 7 | `tsdown/config.ts` | Present, with a knip.json entry | Knip does not auto-detect tsdown configs; the entry is honest config hygiene, not a weakening. |
 | 8 | Catalog versions | `supertest ^7.0.0`, `helmet ^8.0.0`, `cors ^2.8.5`, `pino ^9.9.0`, `@sentry/node ^9.0.0`, `tsdown ^0.15.0`, `@supabase/supabase-js ^2.58.0` (+ `@types/*`) | First use in Phase 3, per the catalog rule. `supabase-js` is lazy-imported inside the default auth verifier so tests never touch GoTrue. |
+
+---
+
+## Phase 4 — Auth — 2026-10-09
+
+**Roadmap said:** OTP/session/roles/MFA auth routes, Supabase integrations, auth + admin-user
+services, fixtures, integration tests; four exit criteria, two dead-code gates.
+
+**Did:** all except two deliberate deferrals (below). Tests: api 4 files × 38 (16 middleware +
+15 auth + 7 openapi/env). OTP 202-shape parity, rate-limit 429, cookie attributes (HttpOnly
+session, readable CSRF), onboarding advance, link-owner 404-not-403, CSRF 403 paths, admin
+list/invite/roles/suspend, per-role fixtures incl. redirect matrix, RLS identity file re-run
+green. `check-flag-usage`/`check-permission-parity` pass untouched.
+
+### Deviations from the plan, with reasons
+
+| # | Roadmap/docs said | Repository does | Why |
+|---|---|---|---|
+| 1 | MFA gate on `settings_manage` + test | Deferred (no code) | No `settings_manage` routes exist yet; an MFA middleware with no caller fails knip. Lands with its first guarded route. `profiles` has no MFA columns either — enforcement will read GoTrue factors, not a flag. |
+| 2 | `apps/web proxy.ts` exit criterion | Deferred to Phase 7 | No web app exists; creating one for a single middleware file violates file-list scoping. API cookie/session mechanics fully tested here instead. |
+| 3 | `withRls(tx, jwt, fn)` in the wiring | Phase 4 reads/writes through supabase-js (user token → RLS, admin client → service ops) | Same RLS guarantee, but unit-testable with fakes: api tests run in CI with no database, and no fake could honor a real `withRls`. Drizzle paths adopt `withRls` from Phase 5. |
+| 4 | CSRF middleware file | `requireCsrf()` lives in `middleware/auth.ts` | One concern (request identity) in one place; no new file for 30 lines. Covered via harness test routes. |
+| 5 | DB-backed idempotency store | Interface + memory store only | A drizzle store would be untested dead code (no DB in api tests) failing knip. Lands with its first caller. |
+| 6 | Session cookie contents | Single HttpOnly cookie carrying `{access_token, refresh_token}` JSON | Browser clients must refresh without ever seeing a token in JavaScript; the readable `courtland-csrf` cookie carries only the double-submit token. |
+| 7 | `v1Router`, option interfaces, helper functions exported | Unexported until used | Knip `exports: error` on non-entry files; Phase 4 re-exports nothing speculatively (same discipline as Phase 3). |
+| 8 | `tsdown/config.ts` | Knip entry added | Knip does not auto-detect tsdown configs; honest config hygiene from the Phase 3 pass. |

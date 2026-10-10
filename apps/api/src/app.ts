@@ -1,6 +1,10 @@
 // src/app.ts — Express assembly, exported for tests (docs/roadmap § Phase 3).
 // Never calls listen: every integration test is a supertest call against an
 // in-process app with no port bound. server.ts owns listen and shutdown.
+//
+// Auth is per-route, not global: /v1 mixes anonymous (OTP, csrf) and guarded
+// endpoints, so each route composes its own authenticate/requirePermission
+// chain. Test-only routes mount under /t/* via testRoutes.
 
 import type { Logger } from "@courtland/logger";
 import { createLogger } from "@courtland/logger";
@@ -9,30 +13,20 @@ import type { Express, Router } from "express";
 import express from "express";
 import helmet from "helmet";
 import { NotFoundError } from "./lib/errors.ts";
-import type { AuthVerifier } from "./middleware/auth.ts";
-import { authenticate, supabaseVerifier } from "./middleware/auth.ts";
 import { createErrorHandler } from "./middleware/error.ts";
 import { rateLimit } from "./middleware/rateLimit.ts";
 import { requestId } from "./middleware/requestId.ts";
 import { healthRouter } from "./routes/health.ts";
-import { routes } from "./routes/index.ts";
 
-interface AppOptions {
+interface CreateAppOptions {
   logger?: Logger;
-  authVerifier?: AuthVerifier;
-  supabaseUrl?: string;
-  supabaseAnonKey?: string;
   corsOrigins?: string[];
+  v1Routes?: Router;
   testRoutes?: Router;
 }
 
-export function createApp(options: AppOptions = {}): Express {
+export function createApp(options: CreateAppOptions = {}): Express {
   const logger = options.logger ?? createLogger();
-  const verifier =
-    options.authVerifier ??
-    (options.supabaseUrl && options.supabaseAnonKey
-      ? supabaseVerifier(options.supabaseUrl, options.supabaseAnonKey)
-      : null);
   const app = express();
   app.disable("x-powered-by");
   app.use(helmet());
@@ -51,9 +45,8 @@ export function createApp(options: AppOptions = {}): Express {
       max: 1000,
     }),
   );
-  app.use(routes);
-  if (verifier) {
-    app.use("/v1", authenticate(verifier));
+  if (options.v1Routes) {
+    app.use("/v1", options.v1Routes);
   }
   if (options.testRoutes) {
     app.use("/t", options.testRoutes);

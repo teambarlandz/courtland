@@ -1,9 +1,16 @@
-// routes/index.ts — router assembly, /v1 mount.
-// Phase 3 mounts no domain routes (they arrive with their phases); the /v1
-// router exists so the mount point and its middleware order are settled now.
+// routes/index.ts — /v1 assembly. Takes the mounted sub-routers so app.ts
+// stays free of domain imports; server.ts wires the real services, tests pass
+// fakes. New domains mount here as their phases land.
 import { Router } from "express";
 
-const v1Router = Router();
+interface V1Deps {
+  authRouter: Router;
+  adminUsersRouter: Router;
+}
 
-export const routes = Router();
-routes.use("/v1", v1Router);
+export function createV1Router(deps: V1Deps): Router {
+  const v1 = Router();
+  v1.use("/auth", deps.authRouter);
+  v1.use("/admin/users", deps.adminUsersRouter);
+  return v1;
+}

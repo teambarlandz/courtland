@@ -3,18 +3,36 @@ import { createLogger } from "@courtland/logger";
 import { createApp } from "./app.ts";
 import { loadEnv } from "./env.ts";
 import { initInstrumentation } from "./instrumentation.ts";
+import { createServiceClient } from "./integrations/supabase/admin.ts";
+import { supabaseSessionVerifier } from "./middleware/auth.ts";
+import { wireAdminUsersRoutes } from "./routes/admin/users.ts";
+import { wireAuthRoutes } from "./routes/auth.ts";
+import { createV1Router } from "./routes/index.ts";
 
 const env = loadEnv();
 const logger = createLogger({ level: env.LOG_LEVEL, env: env.NODE_ENV, version: env.GIT_SHA });
 initInstrumentation({ logger, sentryDsn: env.SENTRY_DSN });
 
+const admin = createServiceClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+const corsOrigins = env.CORS_ORIGINS.split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+const verifier = supabaseSessionVerifier(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, admin);
+
 const app = createApp({
   logger,
-  supabaseUrl: env.SUPABASE_URL,
-  supabaseAnonKey: env.SUPABASE_ANON_KEY,
-  corsOrigins: env.CORS_ORIGINS.split(",")
-    .map((origin) => origin.trim())
-    .filter((origin) => origin.length > 0),
+  corsOrigins,
+  v1Routes: createV1Router({
+    authRouter: wireAuthRoutes({
+      supabaseUrl: env.SUPABASE_URL,
+      supabaseAnonKey: env.SUPABASE_ANON_KEY,
+      supabaseServiceKey: env.SUPABASE_SERVICE_ROLE_KEY,
+      allowedOrigins: corsOrigins,
+      cookieDomain: new URL(env.APP_URL).hostname,
+      logger,
+    }),
+    adminUsersRouter: wireAdminUsersRoutes(admin, verifier),
+  }),
 });
 
 const server = app.listen(env.PORT, () => {
