@@ -127,3 +127,29 @@ Two small pushes after the phase commit, no plan changes:
   (`import type` sorts first). Root cause was process, not tooling: the import was added after
   the last local lint run. Fixed with `biome check --write`; rule going forward is a full gate
   pass after the final edit, immediately before staging.
+
+---
+
+## Phase 3 — API kernel — 2026-10-09
+
+**Roadmap said:** Express app, middleware (requestId/auth/requirePermission/validate/
+idempotency/rateLimit/error), errors lib, routes (index/health), server, tsdown config,
+logger package, supertest suites per problem code; five exit criteria, two dead-code gates.
+
+**Did:** all of it. Tests: logger 2, api 23 (every catalogue problem code triggered through
+harness routes mounted at `/t/*`). `GET /health` verified without auth/rate-limit/DB.
+`pnpm -r typecheck/lint/test/build`, `check:links`, `check:freshness`, `pnpm knip`,
+`check:permissions`, `check:drift` green.
+
+### Deviations from the plan, with reasons
+
+| # | Roadmap/docs said | Repository does | Why |
+|---|---|---|---|
+| 1 | Express (version unpinned) | `express ^4.21.2` | v5 path-syntax changes buy nothing here; the stable middleware ecosystem matches every example. Recorded so a v5 migration is a conscious decision. |
+| 2 | `instrumentation.ts`: "Sentry and OpenTelemetry init", server "Sentry preload" | Sentry SDK installed, `initInstrumentation({logger, dsn})` called explicitly by server; no OTel SDK | Explicit call beats import magic (testable without DSN); OTel without a collector is pure overhead — deferred to Phase 15 with the dashboards that consume it. |
+| 3 | `idempotency.ts`: "Reserve, replay" | Middleware factory takes an injected store; in-memory store shipped; DB-backed store deferred | A DB store would be untested dead code in Phase 3 (no DB in api tests) and trips knip's unused-export rule. Lands with its first caller (Phase 4+). Same reason `v1Router`, option interfaces and helper functions stay unexported until used. |
+| 4 | Test-only routes | `createApp({ testRoutes })` mounted at `/t/*` | Keeps one assembly (no duplicated stack in tests) while keeping test routes visibly namespaced out of `/v1`. |
+| 5 | `allocateProRata` property tests | Rewrote the implementation, not the test | fast-check found a genuine bug: the global-floor port of the SQL emits wrong splits for non-uniform weights (`(10,[2,3])` → `[2,8]`) and negatives when zero weights make it overshoot. Per-share floors fix it provably (leftover always `< len`). Tests now pin `[4,6]` and `[0,0,5]` plus 4 green 1000-run seeds. |
+| 6 | SQL `allocate_pro_rata` | Untouched (still global-floor) | pgTAP pins its current outputs; changing it here is out of scope. WARNING for Phase 12: it is wrong for non-uniform weights — unify with the utils implementation when payment code calls it. |
+| 7 | `tsdown/config.ts` | Present, with a knip.json entry | Knip does not auto-detect tsdown configs; the entry is honest config hygiene, not a weakening. |
+| 8 | Catalog versions | `supertest ^7.0.0`, `helmet ^8.0.0`, `cors ^2.8.5`, `pino ^9.9.0`, `@sentry/node ^9.0.0`, `tsdown ^0.15.0`, `@supabase/supabase-js ^2.58.0` (+ `@types/*`) | First use in Phase 3, per the catalog rule. `supabase-js` is lazy-imported inside the default auth verifier so tests never touch GoTrue. |

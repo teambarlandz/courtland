@@ -77,11 +77,14 @@ describe("allocateProRata", () => {
     expect(allocateProRata(1000n, [1n, 1n, 1n])).toEqual([334n, 333n, 333n]);
     expect(allocateProRata(5n, [1n, 2n])).toEqual([2n, 3n]);
     expect(allocateProRata(0n, [1n, 2n, 3n])).toEqual([0n, 0n, 0n]);
+    expect(allocateProRata(10n, [2n, 3n])).toEqual([4n, 6n]);
+    expect(allocateProRata(5n, [0n, 0n, 1n])).toEqual([0n, 0n, 5n]);
   });
-  it("rejects negative totals and non-positive weight sums", () => {
+  it("rejects negative totals, negative weights and non-positive weight sums", () => {
     expect(() => allocateProRata(-1n, [1n])).toThrow();
     expect(() => allocateProRata(5n, [0n, 0n])).toThrow();
     expect(() => allocateProRata(5n, [-1n, -1n])).toThrow();
+    expect(() => allocateProRata(100n, [-1n, 2n])).toThrow();
   });
   it("sums exactly to the total for arbitrary inputs", () => {
     fc.assert(

@@ -1,8 +1,8 @@
 // money.ts — kobo arithmetic (docs/04 §4). All amounts are bigint kobo;
-// formatting is the ONLY place kobo becomes a string. Mirrors the SQL
-// largest-remainder split in private.allocate_pro_rata (floor everyone, hand
-// the remainder to the largest fractional parts, ties to the earlier index,
-// residual drift lands on the last element).
+// formatting is the ONLY place kobo becomes a string. allocateProRata follows
+// the STATED intent of private.allocate_pro_rata (largest remainder, ties to
+// the earlier index) with per-share floors, which the SQL version gets wrong
+// for non-uniform weights — see the function comment.
 
 export function formatNaira(kobo: bigint): string {
   const negative = kobo < 0n;
@@ -35,13 +35,24 @@ export function splitAnnualRent(annualKobo: bigint, months: number): bigint[] {
 }
 
 export function allocateProRata(total: bigint, weights: bigint[]): bigint[] {
+  // Correct largest-remainder: each share starts at its own floored fraction
+  // (total * w_i) / sum, and the leftover (< weights.length, provably) goes to
+  // the largest fractional parts, ties to the earlier index. Non-negative
+  // weights therefore always yield non-negative parts that sum to the total.
+  //
+  // Deliberate divergence from private.allocate_pro_rata in SQL, which floors
+  // every share at total / sum (correct only for near-uniform weights; e.g.
+  // SQL gives [2,8] for (10, [2,3]) where this gives [4,6], and SQL can emit
+  // negative parts when zero weights make the global floor overshoot). The SQL
+  // behaviour is pinned by pgTAP, so unifying the two is Phase 12 work, when
+  // payment code actually calls the SQL version — see the changelog.
   if (total < 0n) throw new Error("total must be non-negative");
   if (weights.length === 0) return [];
+  if (weights.some((w) => w < 0n)) throw new Error("weights must be non-negative");
   const sum = weights.reduce((a, b) => a + b, 0n);
   if (sum <= 0n) throw new Error("weights must sum to a positive value");
-  const base = total / sum;
-  let extra = total - base * sum;
-  const result = weights.map(() => base);
+  const result = weights.map((w) => (total * w) / sum);
+  let extra = total - result.reduce((a, b) => a + b, 0n);
   const order = weights
     .map((w, i) => ({ i, rem: (total * w) % sum }))
     .sort((a, b) => (b.rem > a.rem ? 1 : b.rem < a.rem ? -1 : a.i - b.i));
@@ -51,8 +62,6 @@ export function allocateProRata(total: bigint, weights: bigint[]): bigint[] {
     result[idx] = (result[idx] as bigint) + 1n;
     extra -= 1n;
   }
-  const last = result.length - 1;
-  result[last] = (result[last] as bigint) + (total - result.reduce((a, b) => a + b, 0n));
   return result;
 }
 

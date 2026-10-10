@@ -12,13 +12,24 @@
   },
   "dependencies": {
     "@courtland/db": "workspace:*",
+    "@courtland/logger": "workspace:*",
     "@courtland/types": "workspace:*",
+    "@supabase/supabase-js": "catalog:",
+    "cors": "catalog:",
+    "express": "catalog:",
+    "helmet": "catalog:",
     "postgres": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@courtland/config": "workspace:*",
+    "@sentry/node": "catalog:",
+    "@types/cors": "catalog:",
+    "@types/express": "catalog:",
     "@types/node": "catalog:",
+    "@types/supertest": "catalog:",
+    "supertest": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }
