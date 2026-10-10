@@ -339,7 +339,10 @@ Drizzle parameterises — it is about cost: an unindexed sort on 40,000 rows is 
 ## 10. Endpoint catalogue
 
 Every row is implemented. Nothing here is aspirational; if an endpoint is not needed by a client, it is
-not listed and does not exist. This is the anti-dead-code rule for the API.
+not listed and does not exist. This is the anti-dead-code rule for the API. Rows assemble in
+`apps/api/src/routes/index.ts`, mounted at `/v1` by `app.ts`; each row below names the handler
+module that owns it once routes land (Phase 4+). `GET /health` is the exception: it lives in
+`apps/api/src/routes/health.ts`, mounted outside the limiter and everything else.
 
 ### Auth
 
